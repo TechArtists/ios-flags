@@ -6,6 +6,7 @@ The package currently ships with:
 
 - `TAFlags`: the core flag system
 - `TAFlagsAdaptorFirebaseRemoteConfig`: a Firebase Remote Config adaptor
+- `TAFlagsMacros`: an optional macro target that can synthesize `TAFlags.Keys.allFlags`
 
 ## Highlights
 
@@ -71,6 +72,27 @@ extension TAFlags.Keys {
 }
 ```
 
+If you prefer to avoid maintaining the registration list by hand, add `TAFlagsMacros`
+and annotate the extension that contains your flag declarations:
+
+```swift
+import TAFlags
+import TAFlagsMacros
+
+@TAFlagNamespace
+extension TAFlags.Keys {
+    static let newPaywallEnabled = TAFlag<Bool>(
+        "new_paywall_enabled",
+        default: false
+    )
+
+    static let onboardingVariant = TAFlag<OnboardingVariant>(
+        "onboarding_variant",
+        default: .control
+    )
+}
+```
+
 ```swift
 import TAFlags
 import TAFlagsAdaptorFirebaseRemoteConfig
@@ -84,10 +106,7 @@ final class AppFlags {
             config: .init(
                 adaptor: FirebaseRemoteConfigFlagsAdaptor(),
                 startupPolicy: .publishCurrentThenFetch,
-                registeredFlags: [
-                    TAFlags.Keys.newPaywallEnabled,
-                    TAFlags.Keys.onboardingVariant
-                ]
+                registeredFlags: TAFlags.Keys.allFlags
             )
         )
     }
@@ -97,6 +116,9 @@ final class AppFlags {
     }
 }
 ```
+
+`@TAFlagNamespace` only includes stored `static let` `TAFlag` declarations that live inside
+the annotated extension, in declaration order.
 
 By default, `start()` does three things:
 
