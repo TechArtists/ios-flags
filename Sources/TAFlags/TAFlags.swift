@@ -82,8 +82,17 @@ public final class TAFlags: ObservableObject {
 
     /// Starts the flag system if it has not already been started.
     ///
-    /// Startup registers all defaults, subscribes to runtime backend updates, then executes the
-    /// configured startup policy from ``TAFlagsConfig/startupPolicy``.
+    /// Startup registers all code-defined defaults with the adaptor, subscribes to runtime
+    /// backend updates, then executes the configured startup policy from
+    /// ``TAFlagsConfig/startupPolicy``.
+    ///
+    /// Depending on that policy, startup may:
+    ///
+    /// - publish the adaptor's current active values first
+    /// - perform an initial refresh through ``TAFlagsAdaptor/fetchAndActivate()``
+    ///
+    /// For Firebase Remote Config, the current active values are the values already activated
+    /// locally before a new fetch runs.
     public func start() async {
         guard !hasStarted else { return }
 

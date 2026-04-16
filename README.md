@@ -107,6 +107,15 @@ Terminology used below:
 - `currently active provider values` means the values the backend would return right now, before doing a new fetch
 - `publish` means decoding those raw backend values and sending the typed results into each flag's `publisher`, so app code and subscribers see the update
 
+These startup policies do not map directly to Firebase's `fetch()` and `activate()` methods.
+In this package, the startup policy only answers two questions:
+
+1. Should `TAFlags` first read and publish the provider's current active values?
+2. Should `TAFlags` then run a refresh via `fetchAndActivate()`?
+
+For the Firebase adaptor, the refresh step uses `fetchAndActivate()`. It does not use plain
+`fetch()` during startup.
+
 Available startup policies:
 
 - `.publishCurrentThenFetch`: publish currently active provider values, then fetch fresh ones
@@ -134,6 +143,39 @@ The policies therefore behave like this:
   1. Do not first read Firebase's current active values.
   2. Call `fetchAndActivate()`.
   3. Publish any keys that changed after activation.
+
+Value sources in Firebase-backed setups:
+
+| Term | Where it is defined | When it is used |
+| --- | --- | --- |
+| Swift code-defined default | `TAFlag(..., default: ...)` in app code | The initial local fallback value before any remote override becomes active |
+| Firebase local default | Registered by the SDK through `setDefaults(...)` using the Swift default | Returned by Firebase when no remote value is active yet |
+| Firebase active value | The value currently active in the Firebase SDK on this device | What `rawValue(forKey:)` returns right now |
+| Fresh fetched-and-activated remote value | Returned by Firebase after `fetchAndActivate()` | Replaces the active value after a successful refresh |
+
+Firebase Console can also define a backend default value for a parameter. That backend default is
+used when no condition matches, unless the parameter is set to `Use in-app default`, in which case
+Firebase falls back to the app's registered local default.
+
+Another way to think about it:
+
+- `.publishCurrentThenFetch` = use cached/active Firebase values immediately, then refresh
+- `.publishCurrentOnly` = use cached/active Firebase values immediately, do not refresh
+- `.fetchOnly` = ignore cached/active Firebase values at startup, wait for a fresh `fetchAndActivate()`
+
+Example:
+
+- code default for `new_ui` = `false`
+- Firebase active cached value from a previous app launch = `true`
+
+At startup:
+
+- `.publishCurrentThenFetch`: app sees `true` immediately, then may update again after refresh
+- `.publishCurrentOnly`: app sees `true` immediately and does not refresh
+- `.fetchOnly`: app does not use that cached `true` first; it stays on the local default until `fetchAndActivate()` finishes
+
+There is intentionally no startup policy here that means "call Firebase `fetch()` without
+`activate()`". The refresh path in this package is based on `fetchAndActivate()`.
 
 In other words:
 

@@ -27,14 +27,40 @@ import Foundation
 /// Configuration for a ``TAFlags`` instance.
 public struct TAFlagsConfig {
     /// Controls how ``TAFlags/start()`` initializes values during startup.
+    ///
+    /// These policies do not directly map to a backend's `fetch()` versus `activate()` APIs.
+    /// Instead, they answer two startup questions:
+    ///
+    /// 1. Should ``TAFlags`` first read and publish the backend's current active values?
+    /// 2. Should ``TAFlags`` then perform an initial refresh through
+    ///    ``TAFlagsAdaptor/fetchAndActivate()``?
+    ///
+    /// The "current active values" are whatever the adaptor would return from
+    /// ``TAFlagsAdaptor/rawValue(forKey:)`` at startup time. For Firebase Remote Config, that
+    /// usually means either:
+    ///
+    /// - a previously activated remote value from an earlier app launch
+    /// - or the code-defined default that was registered with Firebase as a local fallback
     public enum StartupPolicy: Sendable {
-        /// Publishes currently active provider values, then performs an initial fetch.
+        /// Publishes the backend's current active values first, then performs an initial refresh
+        /// via ``TAFlagsAdaptor/fetchAndActivate()``.
+        ///
+        /// With Firebase Remote Config, this means `TAFlags` first uses the values that are
+        /// already active locally, then calls `fetchAndActivate()`.
         case publishCurrentThenFetch
 
-        /// Publishes currently active provider values without performing an initial fetch.
+        /// Publishes the backend's current active values without performing an initial refresh.
+        ///
+        /// With Firebase Remote Config, this means `TAFlags` uses the values that are already
+        /// active locally and does not call `fetchAndActivate()` during startup.
         case publishCurrentOnly
 
-        /// Skips publishing current provider values and only performs the initial fetch.
+        /// Skips publishing the backend's current active values and only performs an initial
+        /// refresh via ``TAFlagsAdaptor/fetchAndActivate()``.
+        ///
+        /// With Firebase Remote Config, this means `TAFlags` ignores any already-active cached
+        /// Remote Config values at startup and keeps exposing the code-defined defaults until
+        /// `fetchAndActivate()` completes.
         case fetchOnly
     }
 

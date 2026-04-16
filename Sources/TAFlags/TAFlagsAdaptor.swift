@@ -40,14 +40,14 @@ public protocol TAFlagsAdaptor: AnyObject, Sendable {
 
     /// Registers the local default values for all known flags with the backend.
     ///
-    /// Providers should make these defaults available immediately when no remote value has been
-    /// activated yet.
+    /// Providers should make these code-defined defaults available immediately when no remote
+    /// value has been activated yet.
     func register(defaults: [String: NSObject])
 
     /// Returns the provider's current raw value for a key.
     ///
     /// The returned value should reflect the provider's active state at the time of the call,
-    /// including defaults when no remote override exists.
+    /// including the registered code-defined defaults when no remote override exists.
     func rawValue(forKey key: String) -> TAFlagRawValue
 
     /// Fetches and activates fresh remote values, then returns the subset of registered keys
