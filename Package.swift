@@ -23,7 +23,6 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 //  THE SOFTWARE.
 
-import CompilerPluginSupport
 import PackageDescription
 
 let package = Package(
@@ -41,11 +40,6 @@ let package = Package(
             name: "TAFlagsAdaptorFirebaseRemoteConfig",
             targets: ["TAFlagsAdaptorFirebaseRemoteConfig"]
         )
-//        ,
-//        .library(
-//            name: "TAFlagsMacros",
-//            targets: ["TAFlagsMacros"]
-//        )
     ],
     dependencies: [
         .package(
@@ -56,10 +50,6 @@ let package = Package(
             url: "https://github.com/firebase/firebase-ios-sdk.git",
             .upToNextMajor(from: "12.0.0")
         ),
-        .package(
-            url: "https://github.com/swiftlang/swift-syntax.git",
-            .upToNextMajor(from: "600.0.0")
-        ),
     ],
     targets: [
         .target(
@@ -68,20 +58,6 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log")
             ]
         ),
-//        .macro(
-//            name: "TAFlagsMacrosDeclarations",
-//            dependencies: [
-//                .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
-//                .product(name: "SwiftSyntaxMacros", package: "swift-syntax")
-//            ]
-//        ),
-//        .target(
-//            name: "TAFlagsMacros",
-//            dependencies: [
-//                "TAFlags",
-//                "TAFlagsMacrosDeclarations"
-//            ]
-//        ),
         .target(
             name: "TAFlagsAdaptorFirebaseRemoteConfig",
             dependencies: [
@@ -90,22 +66,10 @@ let package = Package(
                 .product(name: "FirebaseRemoteConfig", package: "firebase-ios-sdk")
             ]
         ),
-//        .testTarget(
-//            name: "TAFlagsTests",
-//            dependencies: [
-//                "TAFlags",
-//                "TAFlagsMacros"
-//            ]
-//        ),
-//        .testTarget(
-//            name: "TAFlagsMacrosDeclarationsTests",
-//            dependencies: [
-//                "TAFlagsMacros",
-//                "TAFlagsMacrosDeclarations",
-//                .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
-//                .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax")
-//            ]
-//        ),
+        .testTarget(
+            name: "TAFlagsTests",
+            dependencies: ["TAFlags"]
+        ),
         .testTarget(
             name: "TAFlagsAdaptorFirebaseRemoteConfigTests",
             dependencies: ["TAFlagsAdaptorFirebaseRemoteConfig"]
