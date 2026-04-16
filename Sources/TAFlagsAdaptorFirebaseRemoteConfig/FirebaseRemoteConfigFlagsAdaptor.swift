@@ -110,10 +110,14 @@ public final class FirebaseRemoteConfigFlagsAdaptor: TAFlagsAdaptor, @unchecked 
                 return
             }
 
-            let relevantKeys = updatedKeys.intersection(self.registeredKeys)
-            guard !relevantKeys.isEmpty else { return }
+            // Firebase can invoke update listeners off the main actor.
+            // Hop before touching mutable state or sending through Combine.
+            Task { @MainActor [weak self, updatedKeys] in
+                guard let self else { return }
 
-            Task {
+                let relevantKeys = updatedKeys.intersection(self.registeredKeys)
+                guard !relevantKeys.isEmpty else { return }
+
                 do {
                     _ = try await self.client.activate()
                     self.updatesSubject.send(relevantKeys)

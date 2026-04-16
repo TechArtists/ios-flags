@@ -36,7 +36,7 @@ private final class FakeListenerRegistration: FirebaseRemoteConfigListenerRegist
     }
 }
 
-private final class FakeFirebaseRemoteConfigClient: FirebaseRemoteConfigClientProtocol {
+private final class FakeFirebaseRemoteConfigClient: FirebaseRemoteConfigClientProtocol, @unchecked Sendable {
     var appliedMinimumFetchInterval: TimeInterval?
     var appliedFetchTimeout: TimeInterval?
     var defaults: [String: NSObject] = [:]
@@ -154,19 +154,52 @@ struct FirebaseRemoteConfigFlagsAdaptorTests {
             "feature_bool": NSNumber(value: false)
         ])
 
-        var receivedKeySets: [Set<String>] = []
-        let cancellable = adaptor.updatesPublisher
-            .sink { receivedKeySets.append($0) }
-
-        defer { cancellable.cancel() }
-
         try await adaptor.start()
-        client.listener?(Set(["feature_bool", "other_key"]), nil)
-        await Task.yield()
+
+        var cancellable: AnyCancellable?
+        let receivedKeys = await withCheckedContinuation { continuation in
+            cancellable = adaptor.updatesPublisher
+                .sink { keys in
+                    continuation.resume(returning: keys)
+                }
+
+            client.listener?(Set(["feature_bool", "other_key"]), nil)
+        }
+
+        cancellable?.cancel()
 
         #expect(client.appliedMinimumFetchInterval == 5)
         #expect(client.appliedFetchTimeout == 15)
-        #expect(receivedKeySets == [Set(["feature_bool"])])
+        #expect(receivedKeys == Set(["feature_bool"]))
+    }
+
+    @Test
+    func startPublishesRuntimeUpdatesTriggeredOffMainActor() async throws {
+        let client = FakeFirebaseRemoteConfigClient()
+        let adaptor = FirebaseRemoteConfigFlagsAdaptor(client: client)
+
+        adaptor.register(defaults: [
+            "feature_bool": NSNumber(value: false)
+        ])
+
+        try await adaptor.start()
+
+        var cancellable: AnyCancellable?
+        let (receivedKeys, receivedOnMainThread) = await withCheckedContinuation { continuation in
+            cancellable = adaptor.updatesPublisher
+                .sink { keys in
+                    continuation.resume(returning: (keys, Thread.isMainThread))
+                }
+
+            Task.detached {
+                client.listener?(Set(["feature_bool", "other_key"]), nil)
+            }
+        }
+
+        cancellable?.cancel()
+
+        #expect(receivedKeys == Set(["feature_bool"]))
+        #expect(receivedOnMainThread)
     }
 
     @Test
