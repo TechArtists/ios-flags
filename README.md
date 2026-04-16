@@ -101,11 +101,44 @@ By default, `start()` does three things:
 This default behavior is controlled by `startupPolicy`, which defaults to
 `.publishCurrentThenFetch`.
 
+Terminology used below:
+
+- `provider` means the backend/adaptor that supplies raw flag values, such as `FirebaseRemoteConfigFlagsAdaptor`
+- `currently active provider values` means the values the backend would return right now, before doing a new fetch
+- `publish` means decoding those raw backend values and sending the typed results into each flag's `publisher`, so app code and subscribers see the update
+
 Available startup policies:
 
 - `.publishCurrentThenFetch`: publish currently active provider values, then fetch fresh ones
 - `.publishCurrentOnly`: publish currently active provider values and skip the initial fetch
 - `.fetchOnly`: skip publishing currently active provider values and only perform the initial fetch
+
+With Firebase Remote Config, "currently active" means the values that have already been
+activated locally. Those may be:
+
+- a previously activated remote value from an earlier app launch
+- or the registered default value when no remote override has been activated yet
+
+The policies therefore behave like this:
+
+- `.publishCurrentThenFetch`
+  1. Read Firebase's current active values.
+  2. Publish those values into `TAFlags`.
+  3. Call `fetchAndActivate()`.
+  4. Publish any keys that changed after activation.
+- `.publishCurrentOnly`
+  1. Read Firebase's current active values.
+  2. Publish those values into `TAFlags`.
+  3. Stop.
+- `.fetchOnly`
+  1. Do not first read Firebase's current active values.
+  2. Call `fetchAndActivate()`.
+  3. Publish any keys that changed after activation.
+
+In other words:
+
+- Firebase `active value` = backend-side active value
+- `TAFlags` `publish` = app-side update to a flag's `CurrentValueSubject`
 
 You can safely read defaults before startup completes:
 
