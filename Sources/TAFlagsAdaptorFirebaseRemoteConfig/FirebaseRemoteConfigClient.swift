@@ -26,6 +26,7 @@ import FirebaseRemoteConfig
 import Foundation
 import TAFlags
 
+@MainActor
 internal final class FirebaseRemoteConfigClient: FirebaseRemoteConfigClientProtocol {
     private let remoteConfig: RemoteConfig
 

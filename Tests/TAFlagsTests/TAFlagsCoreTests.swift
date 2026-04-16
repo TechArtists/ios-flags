@@ -37,7 +37,8 @@ private struct TestJSONPayload: Codable, Equatable {
     let isEnabled: Bool
 }
 
-private final class FakeFlagsAdaptor: TAFlagsAdaptor, @unchecked Sendable {
+@MainActor
+private final class FakeFlagsAdaptor: TAFlagsAdaptor {
     let updatesSubject = PassthroughSubject<Set<String>, Never>()
 
     var defaults: [String: NSObject] = [:]

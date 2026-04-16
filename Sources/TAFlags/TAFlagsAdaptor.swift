@@ -27,7 +27,8 @@ import Foundation
 
 /// The backend interface used by ``TAFlags`` to register defaults, read current values,
 /// fetch fresh values, and observe runtime updates.
-public protocol TAFlagsAdaptor: AnyObject, Sendable {
+@MainActor
+public protocol TAFlagsAdaptor: AnyObject {
     /// A publisher that emits the set of keys whose active values changed outside an explicit
     /// ``fetchAndActivate()`` call, such as push-style provider updates.
     var updatesPublisher: AnyPublisher<Set<String>, Never> { get }

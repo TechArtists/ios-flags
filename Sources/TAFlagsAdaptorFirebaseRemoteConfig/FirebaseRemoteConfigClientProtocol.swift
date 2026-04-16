@@ -29,6 +29,7 @@ internal protocol FirebaseRemoteConfigListenerRegistration: AnyObject {
     func remove()
 }
 
+@MainActor
 internal protocol FirebaseRemoteConfigClientProtocol: AnyObject {
     func applySettings(minimumFetchInterval: TimeInterval, fetchTimeout: TimeInterval)
     func ensureInitialized() async throws

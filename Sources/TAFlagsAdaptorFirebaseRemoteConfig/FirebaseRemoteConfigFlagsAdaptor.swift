@@ -28,7 +28,7 @@ import Logging
 import TAFlags
 
 /// A ``TAFlagsAdaptor`` implementation backed by Firebase Remote Config.
-public final class FirebaseRemoteConfigFlagsAdaptor: TAFlagsAdaptor, @unchecked Sendable {
+public final class FirebaseRemoteConfigFlagsAdaptor: TAFlagsAdaptor {
     /// Runtime settings applied to `RemoteConfig.configSettings`.
     public struct Configuration: Equatable {
         #if DEBUG
@@ -54,12 +54,34 @@ public final class FirebaseRemoteConfigFlagsAdaptor: TAFlagsAdaptor, @unchecked 
     }
 
     private let configuration: Configuration
-    private let client: any FirebaseRemoteConfigClientProtocol
+    private final class ListenerLifetime {
+        var registration: (any FirebaseRemoteConfigListenerRegistration)?
+
+        deinit {
+            registration?.remove()
+        }
+    }
+
+    private actor RuntimeUpdateBridge {
+        weak var adaptor: FirebaseRemoteConfigFlagsAdaptor?
+
+        init(adaptor: FirebaseRemoteConfigFlagsAdaptor) {
+            self.adaptor = adaptor
+        }
+
+        func handle(updatedKeys: Set<String>, error: Error?) async {
+            await adaptor?.handleRuntimeUpdate(updatedKeys: updatedKeys, error: error)
+        }
+    }
+
+    private let clientFactory: @MainActor () -> any FirebaseRemoteConfigClientProtocol
     private let updatesSubject = PassthroughSubject<Set<String>, Never>()
-    private let logger: Logger
+    private let logger: Logging.Logger
 
     private var registeredKeys: Set<String> = []
-    private var listenerRegistration: (any FirebaseRemoteConfigListenerRegistration)?
+    private let listenerLifetime = ListenerLifetime()
+    private var cachedClient: (any FirebaseRemoteConfigClientProtocol)?
+    private lazy var runtimeUpdateBridge = RuntimeUpdateBridge(adaptor: self)
 
     /// Publishes the registered keys whose active values changed because of a live Remote Config
     /// update.
@@ -67,34 +89,42 @@ public final class FirebaseRemoteConfigFlagsAdaptor: TAFlagsAdaptor, @unchecked 
         updatesSubject.eraseToAnyPublisher()
     }
 
-    /// Creates an adaptor backed by `RemoteConfig.remoteConfig()`.
+    /// Creates an adaptor backed by `RemoteConfig.remoteConfig()` on first use.
     public init(
         configuration: Configuration = .init(),
-        logger: Logger = Logger(label: "firebase-remote-config-flags-adaptor")
+        logger: Logging.Logger = Logging.Logger(label: "firebase-remote-config-flags-adaptor")
     ) {
         self.configuration = configuration
         self.logger = logger
-        self.client = FirebaseRemoteConfigClient()
+        self.clientFactory = { FirebaseRemoteConfigClient() }
     }
 
     internal init(
         configuration: Configuration = .init(),
-        logger: Logger = Logger(label: "firebase-remote-config-flags-adaptor"),
+        logger: Logging.Logger = Logging.Logger(label: "firebase-remote-config-flags-adaptor"),
         client: any FirebaseRemoteConfigClientProtocol
     ) {
         self.configuration = configuration
         self.logger = logger
-        self.client = client
+        self.clientFactory = { client }
     }
 
-    deinit {
-        listenerRegistration?.remove()
+    internal init(
+        configuration: Configuration = .init(),
+        logger: Logging.Logger = Logging.Logger(label: "firebase-remote-config-flags-adaptor"),
+        clientFactory: @escaping @MainActor () -> any FirebaseRemoteConfigClientProtocol
+    ) {
+        self.configuration = configuration
+        self.logger = logger
+        self.clientFactory = clientFactory
     }
 
     /// Initializes Firebase Remote Config, applies settings, and starts listening for live config
     /// updates.
     public func start() async throws {
-        guard listenerRegistration == nil else { return }
+        guard listenerLifetime.registration == nil else { return }
+
+        let client = resolvedClient()
 
         try await client.ensureInitialized()
         client.applySettings(
@@ -102,28 +132,10 @@ public final class FirebaseRemoteConfigFlagsAdaptor: TAFlagsAdaptor, @unchecked 
             fetchTimeout: configuration.fetchTimeout
         )
 
-        listenerRegistration = client.addOnConfigUpdateListener { [weak self] updatedKeys, error in
-            guard let self else { return }
-
-            if let error {
-                self.logger.error("Remote Config update listener error: \(error.localizedDescription)")
-                return
-            }
-
-            // Firebase can invoke update listeners off the main actor.
-            // Hop before touching mutable state or sending through Combine.
-            Task { @MainActor [weak self, updatedKeys] in
-                guard let self else { return }
-
-                let relevantKeys = updatedKeys.intersection(self.registeredKeys)
-                guard !relevantKeys.isEmpty else { return }
-
-                do {
-                    _ = try await self.client.activate()
-                    self.updatesSubject.send(relevantKeys)
-                } catch {
-                    self.logger.error("Failed to activate updated Remote Config values: \(error.localizedDescription)")
-                }
+        let runtimeUpdateBridge = self.runtimeUpdateBridge
+        listenerLifetime.registration = client.addOnConfigUpdateListener { updatedKeys, error in
+            Task {
+                await runtimeUpdateBridge.handle(updatedKeys: updatedKeys, error: error)
             }
         }
     }
@@ -132,17 +144,18 @@ public final class FirebaseRemoteConfigFlagsAdaptor: TAFlagsAdaptor, @unchecked 
     /// should track.
     public func register(defaults: [String: NSObject]) {
         registeredKeys = Set(defaults.keys)
-        client.setDefaults(defaults)
+        resolvedClient().setDefaults(defaults)
     }
 
     /// Returns the currently active Firebase Remote Config value for a key.
     public func rawValue(forKey key: String) -> TAFlagRawValue {
-        client.rawValue(forKey: key)
+        resolvedClient().rawValue(forKey: key)
     }
 
     /// Fetches and activates remote values, then returns the registered keys whose active values
     /// changed.
     public func fetchAndActivate() async throws -> Set<String> {
+        let client = resolvedClient()
         let beforeSnapshot = snapshot(for: registeredKeys)
         let fetchOutcome = try await client.fetchAndActivate()
 
@@ -156,9 +169,39 @@ public final class FirebaseRemoteConfigFlagsAdaptor: TAFlagsAdaptor, @unchecked 
         })
     }
 
+    @MainActor
+    private func handleRuntimeUpdate(updatedKeys: Set<String>, error: Error?) async {
+        if let error {
+            logger.error("Remote Config update listener error: \(error.localizedDescription)")
+            return
+        }
+
+        let relevantKeys = updatedKeys.intersection(registeredKeys)
+        guard !relevantKeys.isEmpty else { return }
+
+        do {
+            _ = try await resolvedClient().activate()
+            updatesSubject.send(relevantKeys)
+        } catch {
+            logger.error("Failed to activate updated Remote Config values: \(error.localizedDescription)")
+        }
+    }
+
+    @MainActor
     private func snapshot(for keys: Set<String>) -> [String: TAFlagRawValue] {
         Dictionary(uniqueKeysWithValues: keys.map { key in
-            (key, client.rawValue(forKey: key))
+            (key, resolvedClient().rawValue(forKey: key))
         })
+    }
+
+    @MainActor
+    private func resolvedClient() -> any FirebaseRemoteConfigClientProtocol {
+        if let cachedClient {
+            return cachedClient
+        }
+
+        let client = clientFactory()
+        cachedClient = client
+        return client
     }
 }

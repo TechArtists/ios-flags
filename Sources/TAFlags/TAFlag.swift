@@ -73,7 +73,7 @@ extension TAFlags {
 }
 
 /// A strongly typed feature-flag declaration backed by a ``CurrentValueSubject``.
-public final class TAFlag<Value: Equatable>: TAFlagRegistrable, @unchecked Sendable {
+public final class TAFlag<Value: Equatable>: TAFlagRegistrable {
     /// The backend key used to read and update this flag.
     public let key: String
 

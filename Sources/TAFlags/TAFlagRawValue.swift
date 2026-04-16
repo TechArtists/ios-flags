@@ -29,7 +29,7 @@ import Foundation
 /// ``TAFlagsAdaptor`` implementations return this type from `rawValue(forKey:)` before any
 /// flag-specific decoding happens. Each ``TAFlag`` then decodes this provider value into its own
 /// strongly typed published value, such as `Bool`, `String`, an enum, or a `Codable` model.
-public struct TAFlagRawValue: Equatable {
+public struct TAFlagRawValue: Equatable, Sendable {
     /// The provider value represented as a string.
     public let stringValue: String
 

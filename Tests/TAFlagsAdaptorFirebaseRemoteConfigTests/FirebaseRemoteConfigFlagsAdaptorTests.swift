@@ -36,7 +36,8 @@ private final class FakeListenerRegistration: FirebaseRemoteConfigListenerRegist
     }
 }
 
-private final class FakeFirebaseRemoteConfigClient: FirebaseRemoteConfigClientProtocol, @unchecked Sendable {
+@MainActor
+private final class FakeFirebaseRemoteConfigClient: FirebaseRemoteConfigClientProtocol {
     var appliedMinimumFetchInterval: TimeInterval?
     var appliedFetchTimeout: TimeInterval?
     var defaults: [String: NSObject] = [:]
@@ -89,7 +90,48 @@ private final class FakeFirebaseRemoteConfigClient: FirebaseRemoteConfigClientPr
     }
 }
 
+@MainActor
+private final class CountingFirebaseRemoteConfigClientFactory {
+    let client = FakeFirebaseRemoteConfigClient()
+    private(set) var makeCallCount = 0
+
+    func makeClient() -> any FirebaseRemoteConfigClientProtocol {
+        makeCallCount += 1
+        return client
+    }
+}
+
+@MainActor
 struct FirebaseRemoteConfigFlagsAdaptorTests {
+    @Test
+    func initDoesNotInstantiateFirebaseClient() {
+        let factory = CountingFirebaseRemoteConfigClientFactory()
+
+        _ = FirebaseRemoteConfigFlagsAdaptor(
+            clientFactory: { factory.makeClient() }
+        )
+
+        #expect(factory.makeCallCount == 0)
+    }
+
+    @Test
+    func firstRealUseInstantiatesFirebaseClientOnlyOnce() async throws {
+        let factory = CountingFirebaseRemoteConfigClientFactory()
+        let adaptor = FirebaseRemoteConfigFlagsAdaptor(
+            clientFactory: { factory.makeClient() }
+        )
+
+        adaptor.register(defaults: [
+            "feature_bool": NSNumber(value: false)
+        ])
+
+        _ = adaptor.rawValue(forKey: "feature_bool")
+        try await adaptor.start()
+        _ = try await adaptor.fetchAndActivate()
+
+        #expect(factory.makeCallCount == 1)
+    }
+
     @Test
     func defaultConfigurationUsesExpectedFetchIntervalForBuildConfiguration() async throws {
         let client = FakeFirebaseRemoteConfigClient()
@@ -191,8 +233,9 @@ struct FirebaseRemoteConfigFlagsAdaptorTests {
                     continuation.resume(returning: (keys, Thread.isMainThread))
                 }
 
+            let listener = client.listener
             Task.detached {
-                client.listener?(Set(["feature_bool", "other_key"]), nil)
+                listener?(Set(["feature_bool", "other_key"]), nil)
             }
         }
 

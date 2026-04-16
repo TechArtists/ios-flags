@@ -255,6 +255,10 @@ The adaptor:
 - listens for live config updates
 - only republishes keys that are registered with `TAFlags`
 
+Constructing `FirebaseRemoteConfigFlagsAdaptor()` does not touch Firebase immediately, so it is
+safe to build your dependency graph before `FirebaseApp.configure()`. The first real provider use
+still requires Firebase to have been configured already.
+
 ## Custom Adaptors
 
 To plug in a different backend, implement `TAFlagsAdaptor`:
@@ -264,7 +268,8 @@ import Combine
 import Foundation
 import TAFlags
 
-final class MyFlagsAdaptor: TAFlagsAdaptor, @unchecked Sendable {
+@MainActor
+final class MyFlagsAdaptor: TAFlagsAdaptor {
     var updatesPublisher: AnyPublisher<Set<String>, Never> {
         updatesSubject.eraseToAnyPublisher()
     }
