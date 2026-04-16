@@ -22,12 +22,12 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 //  THE SOFTWARE.
 
-import SwiftCompilerPlugin
-import SwiftSyntaxMacros
-
-@main
-struct TAFlagsMacrosPlugin: CompilerPlugin {
-    let providingMacros: [Macro.Type] = [
-        TAFlagNamespaceMacro.self
-    ]
-}
+//import SwiftCompilerPlugin
+//import SwiftSyntaxMacros
+//
+//@main
+//struct TAFlagsMacrosPlugin: CompilerPlugin {
+//    let providingMacros: [Macro.Type] = [
+//        TAFlagNamespaceMacro.self
+//    ]
+//}

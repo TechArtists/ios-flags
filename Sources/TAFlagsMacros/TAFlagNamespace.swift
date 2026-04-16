@@ -41,8 +41,8 @@
 ///     registeredFlags: TAFlags.Keys.allFlags
 /// )
 /// ```
-@attached(member, names: named(allFlags))
-public macro TAFlagNamespace() = #externalMacro(
-    module: "TAFlagsMacrosDeclarations",
-    type: "TAFlagNamespaceMacro"
-)
+//@attached(member, names: named(allFlags))
+//public macro TAFlagNamespace() = #externalMacro(
+//    module: "TAFlagsMacrosDeclarations",
+//    type: "TAFlagNamespaceMacro"
+//)
