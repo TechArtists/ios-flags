@@ -76,25 +76,19 @@ import TAFlags
 import TAFlagsAdaptorFirebaseRemoteConfig
 
 @MainActor
-final class AppFlags {
-    let flags: TAFlags
+let flags = TAFlags(
+    config: .init(
+        adaptor: FirebaseRemoteConfigFlagsAdaptor(),
+        startupPolicy: .publishCurrentThenFetch,
+        registeredFlags: [
+            TAFlags.Keys.newPaywallEnabled,
+            TAFlags.Keys.onboardingVariant
+        ]
+    )
+)
 
-    init() {
-        flags = TAFlags(
-            config: .init(
-                adaptor: FirebaseRemoteConfigFlagsAdaptor(),
-                startupPolicy: .publishCurrentThenFetch,
-                registeredFlags: [
-                    TAFlags.Keys.newPaywallEnabled,
-                    TAFlags.Keys.onboardingVariant
-                ]
-            )
-        )
-    }
-
-    func start() async {
-        await flags.start()
-    }
+Task { @MainActor in
+    await flags.start()
 }
 ```
 
@@ -116,7 +110,7 @@ Available startup policies:
 You can safely read defaults before startup completes:
 
 ```swift
-let isEnabled = appFlags.flags[TAFlags.Keys.newPaywallEnabled]
+let isEnabled = flags[TAFlags.Keys.newPaywallEnabled]
 ```
 
 ## Reading Values
